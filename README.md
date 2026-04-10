@@ -5,6 +5,7 @@ A password-protected Flask application that provides a web interface and API to 
 ## Features
 
 - Password-protected access using Flask-Login (admin/admin123 by default)
+- **API Token authentication** for programmatic access
 - Web interface for downloading URLs
 - RESTful API endpoint: `POST /api/download`
 - File download endpoint: `/download/<filename>?url=<url>`
@@ -33,19 +34,44 @@ Access at: `http://localhost:5000`
 
 ## API Endpoints
 
-- `POST /api/download` - Download URL and return content as JSON
-- `GET /download/<filename>?url=<url>` - Direct file download (saves to `LLAMA_ARG_MODELS_DIR`, requires login)
+- `POST /api/download` - Download URL and save to file
+  - **Auth**: `Authorization: Bearer <API_TOKEN>` or `X-API-Token` header
+  - **Or**: Log in first (session-based)
+- `GET /download/<filename>?url=<url>` - Direct file download (requires login)
 - `GET /logout` - Log out and return to login page
 
-## Configuration
+## API Token Usage
 
-- `SECRET_KEY` - Flask secret key (set in `.env`)
-- `LLAMA_ARG_MODELS_DIR` - Directory for saved downloads (set in `.env` or environment variable, default: `./downloads`)
+Use the API token for programmatic access without login:
+
+```bash
+# Download with API token
+curl -X POST http://localhost:5000/api/download \
+  -H "Authorization: Bearer YOUR_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/file.pdf"}'
+```
+
+Or set the token via environment variable (overrides `.env`):
+```bash
+API_TOKEN=your-token curl -X POST http://localhost:5000/api/download \
+  -H "X-API-Token: $API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/file.pdf"}'
+```
+
+## Configuration
 
 Create a `.env` file to configure these:
 ```bash
 LLAMA_ARG_MODELS_DIR=/path/to/your/models/directory
+API_TOKEN=your-secret-api-token
+SECRET_KEY=your-flask-secret-key
 ```
+
+- `LLAMA_ARG_MODELS_DIR` - Directory for saved downloads (default: `./downloads`)
+- `API_TOKEN` - Optional API token for `/api/download` endpoint (no login required)
+- `SECRET_KEY` - Flask secret key (change from default in production)
 
 ## Architecture
 

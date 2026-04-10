@@ -87,9 +87,30 @@ def logout():
 
 
 @app.route('/api/download', methods=['POST'])
-@login_required
 def api_download():
-    """API endpoint to download a URL and save to file."""
+    """API endpoint to download a URL and save to file.
+
+    Can be authenticated via:
+    - Session authentication (login)
+    - API_TOKEN header (from .env or environment)
+    """
+    # Check for API token authentication
+    api_token = request.headers.get('Authorization') or request.headers.get('X-API-Token')
+
+    # Get token from config if not in headers
+    expected_token = app.config.get('API_TOKEN')
+
+    if api_token and expected_token:
+        # Use API token authentication (no login required)
+        if api_token == expected_token:
+            pass  # Token valid, proceed
+        else:
+            return jsonify({'error': 'Invalid API token'}), 401
+
+    # If no valid authentication, redirect to login
+    if not current_user.is_authenticated:
+        return jsonify({'error': 'Authentication required. Provide API_TOKEN in headers or login first.'}), 401
+
     data = request.get_json()
     if not data or 'url' not in data:
         return jsonify({'error': 'URL is required'}), 400

@@ -31,13 +31,14 @@ llama-model-manager/
 
 - **Flask-Login authentication**: Uses Flask-Login for session management
 - **Password protection**: Default credentials are `admin` / `admin123` (passwords are hashed)
+- **API Token**: Optional `API_TOKEN` for programmatic access (set in `.env`)
 - **File saving**: Downloads are saved to directory from `app.config['LLAMA_ARG_MODELS_DIR']` (set from `.env` at startup)
 - **Routes**:
   - `GET /` - Home page (requires login)
   - `GET/POST /login` - Login page and authentication
   - `GET /logout` - Logout endpoint
-  - `POST /api/download` - API endpoint to download URL content as JSON
-  - `GET /download/<filename>?url=<url>` - Direct file download to models directory
+  - `POST /api/download` - API endpoint to download URL content as JSON (supports API token or login)
+  - `GET /download/<filename>?url=<url>` - Direct file download to models directory (requires login)
 
 **templates/index.html** - Frontend with:
 - URL input form
@@ -51,18 +52,24 @@ llama-model-manager/
 
 ### Authentication Flow
 
+**Option 1: Login Session**
 1. User submits credentials via `POST /login`
 2. Credentials validated against `hashed_users` dict (passwords are hashed with `werkzeug.security`)
 3. On success, `login_user()` stores username in Flask-Login session
 4. Protected routes use `@login_required` decorator which checks `current_user.is_authenticated`
 
+**Option 2: API Token** (for programmatic access)
+1. Set `API_TOKEN=your-secret-token` in `.env`
+2. Include token in header: `Authorization: Bearer <token>` or `X-API-Token: <token>`
+3. `/api/download` endpoint accepts either login session OR valid API token
+
 ### API Endpoints
 
-| Endpoint | Method | Description |
+| Endpoint | Method | Auth | Description |
 |---------|--------|-------------|
-| `/api/download` | POST | Returns URL content as JSON (preview of first 1000 chars) |
-| `/download/<filename>?url=<url>` | GET | Direct file download (saves to `LLAMA_ARG_MODELS_DIR`, requires authentication) |
-| `/logout` | GET | Logout and redirect to login |
+| `/api/download` | POST | API_TOKEN or Login | Download URL and save to file (returns JSON response) |
+| `/download/<filename>?url=<url>` | GET | Login | Direct file download (saves to `LLAMA_ARG_MODELS_DIR`) |
+| `/logout` | GET | N/A | Logout and redirect to login |
 
 ### Development Notes
 

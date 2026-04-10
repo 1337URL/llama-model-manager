@@ -85,3 +85,32 @@ llama-model-manager/
   source venv/bin/activate
   pip install -r requirements.txt
   ```
+
+### Git Workflow
+
+- After making changes, commit with: `git add . && git commit -m "brief description"`
+- Add `.env` files to `.gitignore` to avoid committing secrets
+- Run `/loop 60m git log -1 --format="%ai %s"` to check commit history periodically
+
+### Feature Development Pattern
+
+**Starting a new feature:**
+1. Create a feature branch: `git checkout -b feat/<feature-name>`
+2. Make all changes on the feature branch
+3. Commit frequently with descriptive messages
+4. When done: `git push origin feat/<feature-name>`
+
+**Merging a feature:**
+1. Create PR from feature branch to main
+2. Review and test the feature
+3. Merge PR when approved
+4. Delete feature branch: `git branch -D feat/<feature-name>`
+
+### Auto-Commit Reminder
+
+Before finishing any feature or task:
+1. Review all changes
+2. Test the new functionality
+3. Run: `git add . && git commit -m "feature name"`
+4. Push feature branch to remote
+5. Merge PR when ready

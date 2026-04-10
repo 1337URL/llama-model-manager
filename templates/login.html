@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - URL Downloader</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .login-card { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 16px; padding: 40px; border: 1px solid rgba(255,255,255,0.1); width: 100%; max-width: 400px; }
+        h2 { color: #fff; text-align: center; margin-bottom: 30px; font-size: 1.8em; }
+        label { display: block; color: #fff; margin-bottom: 8px; font-weight: 500; }
+        input { width: 100%; padding: 14px; border: none; border-radius: 8px; background: rgba(255,255,255,0.1); color: #fff; font-size: 16px; margin-bottom: 20px; }
+        input::placeholder { color: #888; }
+        button { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; border: none; padding: 14px 28px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 600; width: 100%; transition: transform 0.2s; }
+        button:hover { transform: translateY(-2px); }
+        .message { margin-top: 15px; padding: 12px; border-radius: 8px; text-align: center; }
+        .error { background: rgba(255,107,107,0.3); color: #ff6b6b; }
+        .info { background: rgba(89, 186, 251, 0.2); color: #fff; margin-top: 20px; padding: 12px; border-radius: 8px; text-align: center; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <h2>Welcome Back</h2>
+        <form method="POST" action="/login">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" placeholder="Enter username" required>
+
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" placeholder="Enter password" required>
+
+            <button type="submit">Sign In</button>
+        </form>
+
+        <div class="info">
+            Demo credentials: <strong>admin</strong> / <strong>admin123</strong>
+        </div>
+    </div>
+</body>
+</html>

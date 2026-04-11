@@ -141,21 +141,27 @@ def download_file(filename):
 
 
 def handle_url_download(url):
-    """Handle downloading a URL and saving to file."""
+    """Handle downloading a URL and saving to file using streaming."""
     save_dir = app.config.get('LLAMA_ARG_MODELS_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'downloads'))
     os.makedirs(save_dir, exist_ok=True)
 
     try:
-        response = requests.get(url, timeout=60, headers={'User-Agent': 'Mozilla/5.0'})
-        response.raise_for_status()
-
         # Generate a safe filename from URL
         from urllib.parse import urlparse, unquote
         parsed = urlparse(url)
         safe_filename = unquote(parsed.path.split('/')[-1]) or 'download'
         file_path = os.path.join(save_dir, safe_filename)
+
+        # Use streaming to download large files without loading into memory
+        response = requests.get(url, stream=True, timeout=60, headers={'User-Agent': 'Mozilla/5.0'})
+        response.raise_for_status()
+
+        # Stream the content directly to disk in chunks
+        chunk_size = 8192  # 8KB chunks
         with open(file_path, 'wb') as f:
-            f.write(response.content)
+            for chunk in response.iter_content(chunk_size=chunk_size):
+                if chunk:  # Filter out keep-alive chunks
+                    f.write(chunk)
 
         return jsonify({
             'success': True,

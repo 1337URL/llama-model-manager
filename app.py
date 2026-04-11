@@ -1,8 +1,13 @@
 import os
+import threading
+import uuid
 import requests
-from flask import Flask, render_template, jsonify, redirect, url_for, send_file, request
+from flask import Flask, render_template, jsonify, redirect, url_for, request
 from flask_login import LoginManager, UserMixin, login_required, login_user, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+
+# Background jobs storage
+jobs = {}
 
 # Create Flask app first
 app = Flask(__name__)
@@ -92,13 +97,58 @@ def logout():
     return redirect(url_for('login'))
 
 
+def download_job(job_id, url):
+    """Background job to download a URL and save to file."""
+    save_dir = app.config.get('LLAMA_ARG_MODELS_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'downloads'))
+    os.makedirs(save_dir, exist_ok=True)
+
+    try:
+        # Generate a safe filename from URL
+        from urllib.parse import urlparse, unquote
+        parsed = urlparse(url)
+        safe_filename = unquote(parsed.path.split('/')[-1]) or 'download'
+        file_path = os.path.join(save_dir, safe_filename)
+
+        # Use streaming to download large files without loading into memory
+        response = requests.get(url, stream=True, headers={'User-Agent': 'Mozilla/5.0'})
+        response.raise_for_status()
+
+        # Stream the content directly to disk in chunks
+        chunk_size = 8192  # 8KB chunks
+        with open(file_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=chunk_size):
+                if chunk:  # Filter out keep-alive chunks
+                    f.write(chunk)
+
+        file_size = os.path.getsize(file_path)
+
+        # Update job status with success
+        jobs[job_id] = {
+            'status': 'completed',
+            'path': file_path,
+            'saved_to': save_dir,
+            'filename': safe_filename,
+            'content_type': response.headers.get('content-type'),
+            'content_length': file_size,
+            'status_code': response.status_code
+        }
+    except Exception as e:
+        # Update job status with error
+        jobs[job_id] = {
+            'status': 'error',
+            'error': str(e)
+        }
+
+
 @app.route('/api/download', methods=['POST'])
 def api_download():
-    """API endpoint to download a URL and save to file.
+    """API endpoint to submit a download job.
 
     Can be authenticated via:
     - Session authentication (login)
     - API_TOKEN header (from .env or environment)
+
+    Returns a job_id for polling status.
     """
     # Check for API token authentication
     api_token = request.headers.get('Authorization') or request.headers.get('X-API-Token')
@@ -126,52 +176,31 @@ def api_download():
     if not url.startswith(('http://', 'https://')):
         return jsonify({'error': 'URL must start with http:// or https://'}), 400
 
-    return handle_url_download(url)
+    # Create a job ID
+    job_id = str(uuid.uuid4())
+    jobs[job_id] = {'status': 'pending', 'url': url}
+
+    # Start background thread
+    thread = threading.Thread(target=download_job, args=(job_id, url))
+    thread.daemon = True
+    thread.start()
+
+    return jsonify({
+        'job_id': job_id,
+        'status': 'pending',
+        'message': 'Download started in background'
+    })
 
 
-@app.route('/download/<path:filename>')
+@app.route('/api/job/<job_id>')
 @login_required
-def download_file(filename):
-    """Download a file from URL and save to LLAMA_ARG_MODELS_DIR."""
-    url = request.args.get('url')
-    if not url:
-        return jsonify({'error': 'No URL provided'}), 400
+def get_job_status(job_id):
+    """Get the status of a download job."""
+    if job_id not in jobs:
+        return jsonify({'error': 'Job not found'}), 404
 
-    return handle_url_download(url)
-
-
-def handle_url_download(url):
-    """Handle downloading a URL and saving to file using streaming."""
-    save_dir = app.config.get('LLAMA_ARG_MODELS_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'downloads'))
-    os.makedirs(save_dir, exist_ok=True)
-
-    try:
-        # Generate a safe filename from URL
-        from urllib.parse import urlparse, unquote
-        parsed = urlparse(url)
-        safe_filename = unquote(parsed.path.split('/')[-1]) or 'download'
-        file_path = os.path.join(save_dir, safe_filename)
-
-        # Use streaming to download large files without loading into memory
-        response = requests.get(url, stream=True, headers={'User-Agent': 'Mozilla/5.0'})
-        response.raise_for_status()
-
-        # Stream the content directly to disk in chunks
-        chunk_size = 8192  # 8KB chunks
-        with open(file_path, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=chunk_size):
-                if chunk:  # Filter out keep-alive chunks
-                    f.write(chunk)
-
-        return jsonify({
-            'success': True,
-            'path': file_path,
-            'saved_to': save_dir,
-            'filename': safe_filename,
-            'content_type': response.headers.get('content-type')
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    job = jobs[job_id]
+    return jsonify(job)
 
 
 if __name__ == '__main__':

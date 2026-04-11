@@ -18,11 +18,13 @@
         button:hover { transform: translateY(-2px); }
         button:active { transform: translateY(0); }
         #result { margin-top: 20px; }
-        .result-box { background: rgba(0,0,0,0.3); padding: 20px; border-radius: 8px; margin-top: 15px; white-space: pre-wrap; font-family: 'Courier New', monospace; font-size: 14px; max-height: 400px; overflow-y: auto; }
         .error { color: #ff6b6b; }
         .success { color: #51cf66; }
         .status { text-align: center; margin-top: 10px; color: #888; }
+        .pending { color: #f5a623; }
         .info { background: rgba(89, 186, 251, 0.2); padding: 15px; border-radius: 8px; margin-top: 20px; color: #fff; }
+        .spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -38,7 +40,7 @@
 
                 <button type="submit" id="submitBtn">Download</button>
                 <div id="loading" style="display: none; text-align: center; margin-top: 15px;">
-                    <span>Loading...</span>
+                    <span class="spinner"></span> <span>Processing...</span>
                 </div>
             </form>
         </div>
@@ -47,6 +49,44 @@
     </div>
 
     <script>
+        async function pollJobStatus(jobId) {
+            const resultDiv = document.getElementById('result');
+            let pollInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/api/job/${jobId}`);
+                    const job = await response.json();
+
+                    if (job.error) {
+                        clearInterval(pollInterval);
+                        resultDiv.innerHTML = `<div class="error">Error: ${job.error}</div>`;
+                        document.getElementById('submitBtn').disabled = false;
+                        document.getElementById('loading').style.display = 'none';
+                    } else if (job.status === 'completed') {
+                        clearInterval(pollInterval);
+                        resultDiv.innerHTML = `
+                            <div class="success">Success! Downloaded ${job.content_length.toLocaleString()} bytes</div>
+                            <div class="info">
+                                <strong>File Saved To:</strong> ${job.saved_to}<br>
+                                <strong>Filename:</strong> ${job.filename}<br>
+                                <strong>Full Path:</strong> ${job.path}<br>
+                                <strong>Content Type:</strong> ${job.content_type}<br>
+                                <strong>HTTP Status:</strong> ${job.status_code}
+                            </div>
+                        `;
+                        document.getElementById('submitBtn').disabled = false;
+                        document.getElementById('loading').style.display = 'none';
+                    } else if (job.status === 'pending') {
+                        resultDiv.innerHTML = '<div class="pending"><span class="spinner"></span> <span>Download in progress...</span></div>';
+                    }
+                } catch (err) {
+                    clearInterval(pollInterval);
+                    resultDiv.innerHTML = `<div class="error">Error polling job status: ${err.message}</div>`;
+                    document.getElementById('submitBtn').disabled = false;
+                    document.getElementById('loading').style.display = 'none';
+                }
+            }, 1000);
+        }
+
         document.getElementById('downloadForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const url = document.getElementById('url').value;
@@ -70,26 +110,14 @@
 
                 if (data.error) {
                     resultDiv.innerHTML = `<div class="error">Error: ${data.error}</div>`;
-                } else if (data.success) {
-                    resultDiv.innerHTML = `
-                        <div class="success">Success! Downloaded ${data.content_length.toLocaleString()} bytes</div>
-                        <div class="status">Status: ${data.status_code}</div>
-                        <div class="result-box">${data.content}</div>
-                        <div class="info">
-                            <strong>File Saved To:</strong> ${data.saved_to}<br>
-                            <strong>Filename:</strong> ${data.filename}<br>
-                            <strong>Full Path:</strong> ${data.path}<br>
-                            <strong>Content Type:</strong> ${data.content_type}<br>
-                            <strong>Full Download:</strong> Visit this URL directly:<br>
-                            <a href="${url}" target="_blank">${url}</a><br>
-                            Or use the direct download endpoint:<br>
-                            <code>/download/${data.filename}?url=${encodeURIComponent(url)}</code>
-                        </div>
-                    `;
+                    btn.disabled = false;
+                    loading.style.display = 'none';
+                } else if (data.job_id) {
+                    resultDiv.innerHTML = '<div class="pending"><span class="spinner"></span> <span>Download started, please wait...</span></div>';
+                    pollJobStatus(data.job_id);
                 }
             } catch (err) {
                 resultDiv.innerHTML = `<div class="error">Network error: ${err.message}</div>`;
-            } finally {
                 btn.disabled = false;
                 loading.style.display = 'none';
             }

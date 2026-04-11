@@ -8,7 +8,8 @@ This file provides guidance to Claude Code when working with code in this reposi
 - Activate venv: `source venv/bin/activate`
 - Install dependencies: `pip install -r requirements.txt`
 - Run the app: `python app.py`
-- Run a single test: (no tests exist yet)
+- Run all tests: `python -m pytest tests/ -v`
+- Run a single test: `python -m pytest tests/test_auth.py::test_login -v`
 - Restart Flask: `pkill -f 'python app.py' && python app.py`
 
 ## Architecture

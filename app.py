@@ -153,7 +153,7 @@ def handle_url_download(url):
         file_path = os.path.join(save_dir, safe_filename)
 
         # Use streaming to download large files without loading into memory
-        response = requests.get(url, stream=True, timeout=60, headers={'User-Agent': 'Mozilla/5.0'})
+        response = requests.get(url, stream=True, headers={'User-Agent': 'Mozilla/5.0'})
         response.raise_for_status()
 
         # Stream the content directly to disk in chunks

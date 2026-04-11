@@ -29,6 +29,7 @@
     <div class="container">
         <h1>URL Downloader</h1>
         <p class="subtitle">Download content from any URL securely</p>
+        {% if username %}<p class="welcome">Welcome, <strong>{{ username }}</strong></p>{% endif %}
 
         <div class="card">
             <form id="downloadForm">

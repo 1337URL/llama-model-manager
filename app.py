@@ -22,13 +22,19 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 # Initialize Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
-# login_view and other configs are handled automatically
+
+
+@login_manager.unauthorized_handler
+def unauthorized():
+    """Redirect to login page when user is not authenticated."""
+    return redirect(url_for('login'))
 
 
 # Custom user class
 class User(UserMixin):
     def __init__(self, username):
         self.username = username
+        self.id = username  # Flask-Login requires an 'id' attribute
 
     @staticmethod
     def load_user_by_username(username):

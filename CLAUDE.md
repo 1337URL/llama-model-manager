@@ -5,12 +5,11 @@ This file provides guidance to Claude Code when working with code in this reposi
 ## Commands
 
 - Create venv (first time only): `python3 -m venv venv`
-- Activate venv: `source venv/bin/activate`
-- Install dependencies: `pip install -r requirements.txt`
-- Run the app: `python app.py`
-- Run all tests: `python -m pytest tests/ -v`
-- Run a single test: `python -m pytest tests/test_auth.py::test_login -v`
-- Restart Flask: `pkill -f 'python app.py' && python app.py`
+- Install dependencies: `./venv/bin/pip install -r requirements.txt`
+- Run the app: `./venv/bin/python app.py`
+- Run all tests: `./venv/bin/python -m pytest tests/ -v`
+- Run a single test: `./venv/bin/python -m pytest tests/test_auth.py::test_login -v`
+- Restart Flask: `pkill -f 'python app.py' && ./venv/bin/python app.py`
 
 ## Architecture
 

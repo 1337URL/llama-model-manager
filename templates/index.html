@@ -76,7 +76,13 @@
                         document.getElementById('submitBtn').disabled = false;
                         document.getElementById('loading').style.display = 'none';
                     } else if (job.status === 'pending') {
-                        resultDiv.innerHTML = '<div class="pending"><span class="spinner"></span> <span>Download in progress...</span></div>';
+                        const bytes = job.content_length ? job.content_length.toLocaleString() : '0';
+                        resultDiv.innerHTML = `
+                            <div class="pending">
+                                <span class="spinner"></span>
+                                <span>Downloading... <strong>${bytes}</strong> bytes received</span>
+                            </div>
+                        `;
                     }
                 } catch (err) {
                     clearInterval(pollInterval);

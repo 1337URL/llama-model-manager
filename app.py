@@ -24,6 +24,13 @@ if os.path.exists(env_file):
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
+# Check if SECRET_KEY is set, generate one if not
+if not app.config.get('SECRET_KEY'):
+    secret_key = os.urandom(12).hex()
+    app.config['SECRET_KEY'] = secret_key
+    print(f"[INFO] No SECRET_KEY found in .env. Generated a new one: {secret_key}")
+    print(f"[INFO] For production, add SECRET_KEY={secret_key} to your .env file")
+
 # Initialize Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)

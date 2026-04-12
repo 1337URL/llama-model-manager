@@ -14,6 +14,8 @@ def client():
     app.config['SECRET_KEY'] = 'test-secret-key-for-flask-login-session'
     app.config['LLAMA_ARG_MODELS_DIR'] = '/tmp/test_llama_downloads'
     app.config['API_TOKEN'] = 'test-token-123'
+    app.config['PROXY_UPSTREAM_URL'] = 'https://httpbin.org'
+    app.config['PROXY_ENABLE_CORS'] = 'false'
     app.config['SESSION_COOKIE_SECURE'] = False
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -41,6 +43,8 @@ def authenticated_session():
     app.config['SECRET_KEY'] = 'test-secret-key-for-flask-login-session'
     app.config['LLAMA_ARG_MODELS_DIR'] = '/tmp/test_llama_downloads'
     app.config['API_TOKEN'] = 'test-token-123'
+    app.config['PROXY_UPSTREAM_URL'] = 'https://httpbin.org'
+    app.config['PROXY_ENABLE_CORS'] = 'false'
     app.config['SESSION_COOKIE_SECURE'] = False
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'

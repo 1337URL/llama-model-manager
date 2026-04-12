@@ -2,7 +2,7 @@ import os
 import threading
 import uuid
 import requests
-from flask import Flask, render_template, jsonify, redirect, url_for, request
+from flask import Flask, render_template, jsonify, redirect, url_for, request, Response, Blueprint
 from flask_login import LoginManager, UserMixin, login_required, login_user, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -216,6 +216,140 @@ def get_job_status(job_id):
         job = job | {'content_length': 0}
 
     return jsonify(job)
+
+
+# Reverse Proxy Blueprint
+def reverse_proxy_handler(method, subpath, upstream_url):
+    """
+    Internal handler that forwards requests to upstream API.
+    Returns a Flask response object.
+    """
+    # If subpath is already a full URL, use it directly
+    if subpath.startswith('http://') or subpath.startswith('https://'):
+        final_url = subpath
+    else:
+        # Build upstream URL by combining upstream_url and subpath
+        upstream_url = upstream_url.rstrip('/')
+        if subpath and not upstream_url.endswith('/'):
+            upstream_url += '/'
+        final_url = upstream_url + subpath.lstrip('/')
+
+    # Build final URL with query string
+    upstream_url = final_url
+
+    # Forward query string if present
+    query_string = request.query_string.decode('utf-8')
+    if query_string:
+        upstream_url += '?' + query_string
+
+    # Get headers to forward
+    headers_to_forward = {}
+    for key, value in request.headers:
+        # Skip sensitive headers
+        if key.lower() not in ['cookie', 'authorization', 'set-cookie',
+                                'x-requested-with', 'x-csrf-token',
+                                'host', 'content-length']:
+            headers_to_forward[key] = value
+
+    # Prepare request
+    try:
+        timeout = int(app.config.get('PROXY_TIMEOUT', 30))
+        # Use request.args for query params and data for body
+        upstream_response = requests.request(
+            method=method,
+            url=upstream_url,
+            data=request.get_data(),
+            headers=headers_to_forward,
+            timeout=timeout
+        )
+
+        # Create response with streaming
+        response = Response(
+            upstream_response.content,
+            status=upstream_response.status_code,
+            mimetype=upstream_response.headers.get('Content-Type', 'application/json')
+        )
+
+        # Copy headers
+        for key, value in upstream_response.headers.items():
+            if key.lower() not in ['transfer-encoding', 'content-encoding']:
+                response.headers[key] = value
+
+        return response
+
+    except requests.exceptions.Timeout:
+        return jsonify({'error': 'Upstream request timed out'}), 504
+    except requests.exceptions.ConnectionError:
+        return jsonify({'error': 'Failed to connect to upstream server'}), 502
+    except requests.exceptions.RequestException as e:
+        return jsonify({'error': f'Upstream request failed: {str(e)}'}), 502
+
+
+# Create reverse proxy blueprint
+reverse_proxy_bp = Blueprint('reverse_proxy', __name__, url_prefix='/api/proxy')
+
+
+@reverse_proxy_bp.after_request
+def add_cors_headers(response):
+    """Add CORS headers if enabled."""
+    if app.config.get('PROXY_ENABLE_CORS', 'false').lower() == 'true':
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, PATCH, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    return response
+
+
+@reverse_proxy_bp.route('/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'])
+def proxy_request(subpath):
+    """Forward requests to upstream API.
+
+    Authentication can be provided via:
+    - API_TOKEN header (from .env or environment)
+    - Session authentication (login)
+    """
+    # Track if we successfully authenticated
+    auth_success = False
+
+    # Check for API token authentication
+    api_token = request.headers.get('Authorization') or request.headers.get('X-API-Token')
+    expected_token = app.config.get('API_TOKEN')
+
+    if api_token and expected_token:
+        # Use API token authentication (no login required)
+        if api_token == expected_token:
+            auth_success = True  # Token valid, proceed
+        else:
+            return jsonify({'error': 'Invalid API token'}), 401
+
+    # Also check if user is logged in (session authentication)
+    if current_user.is_authenticated:
+        auth_success = True
+
+    # If no valid authentication, require login
+    if not auth_success:
+        return jsonify({'error': 'Authentication required. Provide API_TOKEN in headers or login first.'}), 401
+
+    # Get upstream URL from config
+    upstream_url = app.config.get('PROXY_UPSTREAM_URL')
+    if not upstream_url:
+        return jsonify({'error': 'PROXY_UPSTREAM_URL not configured'}), 500
+
+    # Handle OPTIONS preflight
+    if request.method == 'OPTIONS':
+        response = Response('', status=204)
+        if app.config.get('PROXY_ENABLE_CORS', 'false').lower() == 'true':
+            response.headers['Access-Control-Allow-Origin'] = '*'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, PATCH, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+            response.headers['Access-Control-Max-Age'] = '86400'
+        return response
+
+    # Forward the request
+    return reverse_proxy_handler(request.method, subpath, upstream_url)
+
+
+# Register the blueprint
+app.register_blueprint(reverse_proxy_bp)
 
 
 if __name__ == '__main__':

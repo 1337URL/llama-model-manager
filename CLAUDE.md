@@ -111,6 +111,6 @@ llama-model-manager/
 Before finishing any feature or task:
 1. Review all changes
 2. Test the new functionality
-3. Run: `git add . && git commit -m "feature name"`
-4. Push feature branch to remote
-5. Merge PR when ready
+3. Commit changes on current branch: `git add . && git commit -m "brief description"`
+4. If on feature branch: push to remote with `git push origin <branch-name>`
+5. Merge PR when ready, then delete feature branch

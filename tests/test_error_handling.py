@@ -32,11 +32,13 @@ class TestEdgeCases:
         # Can be 200 on success or 500 on network error (both valid for this test)
         assert response.status_code in [200, 500]
 
-    def test_download_file_with_special_filename(self, authenticated_session):
-        """Test direct download endpoint."""
-        response = authenticated_session.get('/download/test.txt?url=https://example.com/test')
+    def test_download_with_job_endpoint(self, authenticated_session):
+        """Test job-based download endpoint."""
+        response = authenticated_session.post('/api/download', json={'url': 'https://example.com/test'})
         # Can be 200 on success or 500 on network error (both valid)
-        assert response.status_code in [200, 400, 500]
+        assert response.status_code == 200
+        data = response.get_json()
+        assert 'job_id' in data
 
     def test_api_download_multiple_requests_same_session(self, authenticated_session):
         """Test that multiple API requests work in the same session."""
@@ -57,4 +59,6 @@ class TestEdgeCases:
 
         # Can be 200 on success or 500 on network error (both valid)
         assert response.status_code in [200, 500]
+        import time
+        time.sleep(0.5)
         assert test_dir.exists()

@@ -99,15 +99,16 @@ def logout():
 
 def download_job(job_id, url):
     """Background job to download a URL and save to file."""
-    save_dir = app.config.get('LLAMA_ARG_MODELS_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'downloads'))
-    os.makedirs(save_dir, exist_ok=True)
-
     try:
+        save_dir = app.config.get('LLAMA_ARG_MODELS_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'downloads'))
+        os.makedirs(save_dir, exist_ok=True)
+
         # Generate a safe filename from URL
         from urllib.parse import urlparse, unquote
         parsed = urlparse(url)
         safe_filename = unquote(parsed.path.split('/')[-1]) or 'download'
         file_path = os.path.join(save_dir, safe_filename)
+        jobs[job_id] = {'status': 'pending', 'url': url, 'path': file_path}
 
         # Use streaming to download large files without loading into memory
         response = requests.get(url, stream=True, headers={'User-Agent': 'Mozilla/5.0'})
@@ -200,6 +201,13 @@ def get_job_status(job_id):
         return jsonify({'error': 'Job not found'}), 404
 
     job = jobs[job_id]
+
+    # Add content_length if path exists
+    if 'path' in job and os.path.exists(job['path']):
+        job = job | {'content_length': os.path.getsize(job['path'])}
+    elif 'path' in job:
+        job = job | {'content_length': 0}
+
     return jsonify(job)
 
 

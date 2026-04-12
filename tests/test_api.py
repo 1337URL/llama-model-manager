@@ -34,15 +34,15 @@ class TestApiDownload:
 
 
 class TestDownloadFileEndpoint:
-    """Test the direct download endpoint."""
+    """Test the job-based download endpoint (replaces /download/<filename>)."""
 
-    def test_download_file_requires_login(self, client):
-        """Test that download endpoint requires authentication."""
-        response = client.get('/download/test.txt?url=https://example.com/test')
+    def test_job_status_requires_login(self, client):
+        """Test that job status endpoint requires authentication."""
+        response = client.get('/api/job/test-job-id')
         assert response.status_code == 302
         assert '/login' in response.location
 
-    def test_download_file_without_url(self, authenticated_session):
-        """Test that download endpoint requires URL parameter."""
-        response = authenticated_session.get('/download/test.txt')
-        assert response.status_code == 400
+    def test_nonexistent_job_returns_404(self, authenticated_session):
+        """Test that nonexistent job returns 404."""
+        response = authenticated_session.get('/api/job/nonexistent-job-id')
+        assert response.status_code == 404

@@ -2,8 +2,10 @@ import os
 import threading
 import uuid
 import requests
+from datetime import datetime
 from flask import Flask, render_template, jsonify, redirect, url_for, request, Response, Blueprint
 from flask_login import LoginManager, UserMixin, login_required, login_user, logout_user, current_user
+from flask_socketio import SocketIO
 from werkzeug.security import generate_password_hash, check_password_hash
 
 # Background jobs storage
@@ -34,6 +36,9 @@ if not app.config.get('SECRET_KEY'):
 # Initialize Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
+
+# Initialize Flask-SocketIO
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 
 @login_manager.unauthorized_handler
@@ -275,6 +280,20 @@ def reverse_proxy_handler(method, subpath, upstream_url):
             if key.lower() not in ['transfer-encoding', 'content-encoding']:
                 response.headers[key] = value
 
+        # Broadcast proxy request to connected clients
+        request_data = {
+            'id': str(uuid.uuid4()),
+            'method': request.method,
+            'status': upstream_response.status_code,
+            'url': subpath,
+            'timestamp': str(datetime.now()),
+            'request': request.get_data().decode(errors='replace'),
+            'request_headers': headers_to_forward,
+            'response': upstream_response.content.decode(errors='replace'),
+            'response_headers': dict(upstream_response.headers)
+        }
+        socketio.emit('proxy_traffic', request_data)
+
         return response
 
     except requests.exceptions.Timeout:
@@ -286,7 +305,7 @@ def reverse_proxy_handler(method, subpath, upstream_url):
 
 
 # Create reverse proxy blueprint
-reverse_proxy_bp = Blueprint('reverse_proxy', __name__, url_prefix='/api/proxy')
+reverse_proxy_bp = Blueprint('reverse_proxy', __name__, url_prefix='/api')
 
 
 @reverse_proxy_bp.after_request
@@ -352,5 +371,12 @@ def proxy_request(subpath):
 app.register_blueprint(reverse_proxy_bp)
 
 
+@app.route('/requests')
+@login_required
+def requests_page():
+    """Real-time proxy requests monitoring page."""
+    return render_template('requests.html', username=current_user.username)
+
+
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)

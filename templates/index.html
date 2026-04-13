@@ -29,6 +29,10 @@
 </head>
 <body>
     <div class="container">
+        <nav style="display: flex; gap: 15px; margin-bottom: 20px;">
+            <a href="/" class="nav-link active" style="color: #fff; text-decoration: none; padding: 8px 16px; border-radius: 6px; background: rgba(255,255,255,0.1);">Downloader</a>
+            <a href="/requests" class="nav-link" style="color: #888; text-decoration: none; padding: 8px 16px; border-radius: 6px;">Proxy Monitor</a>
+        </nav>
         <h1>URL Downloader</h1>
         <p class="subtitle">Download content from any URL securely</p>
         {% if username %}<p class="welcome">Welcome, <strong>{{ username }}</strong></p>{% endif %}

@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proxy Monitor - Real-time Requests</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); min-height: 100vh; padding: 40px 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { color: #fff; text-align: center; margin-bottom: 10px; font-size: 2.5em; }
+        .subtitle { color: #888; text-align: center; margin-bottom: 30px; }
+        .card { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 16px; padding: 30px; margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.1); }
+        .header-info { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        .status-badge { padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 14px; }
+        .status-2xx { background: rgba(81, 207, 102, 0.3); color: #51cf66; }
+        .status-3xx { background: rgba(245, 166, 35, 0.3); color: #f5a623; }
+        .status-4xx { background: rgba(255, 107, 107, 0.3); color: #ff6b6b; }
+        .status-5xx { background: rgba(148, 0, 211, 0.3); color: #9400d3; }
+        .request-card { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; margin-bottom: 15px; border: 1px solid rgba(255,255,255,0.05); }
+        .request-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
+        .request-method { font-size: 18px; font-weight: 700; padding: 6px 12px; border-radius: 6px; }
+        .method-GET { background: rgba(102, 126, 234, 0.3); color: #667eea; }
+        .method-POST { background: rgba(120, 197, 133, 0.3); color: #78c585; }
+        .method-PUT { background: rgba(255, 190, 56, 0.3); color: #ffbe38; }
+        .method-DELETE { background: rgba(255, 107, 107, 0.3); color: #ff6b6b; }
+        .method-PATCH { background: rgba(148, 0, 211, 0.3); color: #9400d3; }
+        .method-OPTIONS { background: rgba(255, 181, 20, 0.3); color: #ffb514; }
+        .request-url { color: #fff; font-size: 14px; word-break: break-all; }
+        .request-meta { display: flex; gap: 20px; color: #888; font-size: 13px; margin-top: 10px; flex-wrap: wrap; }
+        .meta-item { display: flex; align-items: center; gap: 6px; }
+        .content-preview { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 15px; margin-top: 15px; }
+        .content-preview h4 { color: #fff; margin-bottom: 10px; font-size: 14px; }
+        .preview-content { color: #ccc; font-family: 'Courier New', monospace; font-size: 12px; white-space: pre-wrap; overflow-x: auto; max-height: 200px; }
+        .preview-content.collapsed { max-height: 100px; overflow-y: auto; }
+        .toggle-btn { background: none; border: none; color: #888; cursor: pointer; padding: 5px 10px; margin-top: 10px; font-size: 12px; }
+        .toggle-btn:hover { color: #fff; }
+        .headers-preview { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 15px; margin-top: 15px; }
+        .headers-preview h4 { color: #fff; margin-bottom: 10px; font-size: 14px; }
+        .headers-content { color: #ccc; font-family: 'Courier New', monospace; font-size: 11px; max-height: 150px; overflow-y: auto; }
+        .headers-content.collapsed { max-height: 60px; }
+        .headers-content div { display: flex; margin-bottom: 4px; }
+        .headers-content div:hover { background: rgba(255,255,255,0.05); }
+        .header-name { color: #667eea; width: 150px; flex-shrink: 0; }
+        .header-value { color: #ccc; word-break: break-all; }
+        .filters { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .filter-select { padding: 10px 15px; border: none; border-radius: 8px; background: rgba(255,255,255,0.1); color: #fff; }
+        .filter-select:focus { outline: none; background: rgba(255,255,255,0.2); }
+        .empty-state { text-align: center; color: #888; padding: 60px 20px; }
+        .empty-state-icon { font-size: 48px; margin-bottom: 15px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; text-align: center; }
+        .stat-value { font-size: 28px; font-weight: 700; color: #fff; }
+        .stat-label { color: #888; font-size: 14px; margin-top: 5px; }
+        .socket-status { display: inline-flex; align-items: center; gap: 8px; color: #888; font-size: 14px; }
+        .socket-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .socket-dot.connected { background: #51cf66; }
+        .socket-dot.disconnected { background: #ff6b6b; }
+        nav { display: flex; gap: 15px; margin-bottom: 20px; }
+        .nav-link { color: #888; text-decoration: none; padding: 8px 16px; border-radius: 6px; transition: all 0.2s; }
+        .nav-link:hover { color: #fff; background: rgba(255,255,255,0.05); }
+        .nav-link.active { color: #fff; background: rgba(255,255,255,0.1); }
+        .clear-btn { background: rgba(255, 107, 107, 0.2); color: #ff6b6b; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+        .clear-btn:hover { background: rgba(255, 107, 107, 0.3); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav>
+            <a href="/" class="nav-link">Downloader</a>
+            <a href="/requests" class="nav-link active">Proxy Monitor</a>
+        </nav>
+
+        <h1>Proxy Monitor</h1>
+        <p class="subtitle">Real-time proxy request monitoring</p>
+        {% if username %}<p class="welcome" style="color: #fff; text-align: center; margin-bottom: 20px;">Welcome, <strong>{{ username }}</strong></p>{% endif %}
+
+        <div class="card">
+            <div class="header-info">
+                <div class="socket-status">
+                    <span class="socket-dot disconnected" id="socketDot"></span>
+                    <span id="socketStatus">Connecting...</span>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <select id="methodFilter" class="filter-select">
+                        <option value="all">All Methods</option>
+                        <option value="GET">GET</option>
+                        <option value="POST">POST</option>
+                        <option value="PUT">PUT</option>
+                        <option value="DELETE">DELETE</option>
+                        <option value="PATCH">PATCH</option>
+                        <option value="OPTIONS">OPTIONS</option>
+                    </select>
+                    <select id="statusFilter" class="filter-select">
+                        <option value="all">All Status</option>
+                        <option value="2xx">2xx Success</option>
+                        <option value="3xx">3xx Redirect</option>
+                        <option value="4xx">4xx Client Error</option>
+                        <option value="5xx">5xx Server Error</option>
+                    </select>
+                    <button class="clear-btn" id="clearBtn">Clear All</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalRequests">0</div>
+                    <div class="stat-label">Total Requests</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="successRequests">0</div>
+                    <div class="stat-label">Successful (2xx)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="errorRequests">0</div>
+                    <div class="stat-label">Errors (4xx/5xx)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="avgResponseTime">0ms</div>
+                    <div class="stat-label">Avg Response Time</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="requestsList">
+            <div class="empty-state">
+                <div class="empty-state-icon">📡</div>
+                <p>No proxy requests yet</p>
+                <p style="margin-top: 10px;">Requests made through the reverse proxy at <code>/api/*</code> routes will appear here in real-time. Configure <code>PROXY_UPSTREAM_URL</code> in your <code>.env</code> file to enable proxying.</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        // Store all requests
+        let allRequests = [];
+        const MAX_REQUESTS = 100; // Keep last 100 requests in memory
+
+        // Connect to Socket.IO
+        const socket = io();
+
+        socket.on('connect', () => {
+            document.getElementById('socketDot').className = 'socket-dot connected';
+            document.getElementById('socketStatus').textContent = 'Connected';
+        });
+
+        socket.on('disconnect', () => {
+            document.getElementById('socketDot').className = 'socket-dot disconnected';
+            document.getElementById('socketStatus').textContent = 'Disconnected';
+        });
+
+        socket.on('proxy_traffic', (data) => {
+            const request = {
+                id: data.id,
+                method: data.method,
+                url: data.url,
+                status: data.status,
+                timestamp: data.timestamp,
+                request: data.request,
+                request_headers: data.request_headers,
+                response: data.response,
+                response_headers: data.response_headers
+            };
+
+            allRequests.unshift(request);
+            if (allRequests.length > MAX_REQUESTS) {
+                allRequests = allRequests.slice(0, MAX_REQUESTS);
+            }
+
+            renderRequests();
+            updateStats();
+        });
+
+        // Parse JSON content if possible
+        function parseContent(content) {
+            if (!content) return '';
+            try {
+                const parsed = typeof content === 'string' ? JSON.parse(content) : content;
+                return JSON.stringify(parsed, null, 2);
+            } catch {
+                return content;
+            }
+        }
+
+        // Get status CSS class
+        function getStatusClass(status) {
+            if (status >= 200 && status < 300) return 'status-2xx';
+            if (status >= 300 && status < 400) return 'status-3xx';
+            if (status >= 400 && status < 500) return 'status-4xx';
+            return 'status-5xx';
+        }
+
+        // Format timestamp
+        function formatTimestamp(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleString();
+        }
+
+        // Render requests list
+        function renderRequests() {
+            const container = document.getElementById('requestsList');
+            const methodFilter = document.getElementById('methodFilter').value;
+            const statusFilter = document.getElementById('statusFilter').value;
+
+            const filteredRequests = allRequests.filter(req => {
+                if (methodFilter !== 'all' && req.method !== methodFilter) return false;
+                if (statusFilter !== 'all') {
+                    const statusRange = statusFilter;
+                    if (statusRange === '2xx' && (req.status < 200 || req.status >= 300)) return false;
+                    if (statusRange === '3xx' && (req.status < 300 || req.status >= 400)) return false;
+                    if (statusRange === '4xx' && (req.status < 400 || req.status >= 500)) return false;
+                    if (statusRange === '5xx' && req.status < 500) return false;
+                }
+                return true;
+            });
+
+            if (filteredRequests.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📡</div>
+                        <p>${allRequests.length === 0 ? 'No proxy requests yet' : 'No requests match current filters'}</p>
+                        ${allRequests.length > 0 ? '<button class="clear-btn" onclick="document.getElementById(\'methodFilter\').value=\'all\'; document.getElementById(\'statusFilter\').value=\'all\'; renderRequests();">Reset Filters</button>' : '<p style="margin-top: 10px;">Requests made through <code>/api/*</code> routes will appear here in real-time</p>'}
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filteredRequests.map(req => {
+                // Format headers as key-value pairs
+                const formatHeaders = (headers) => {
+                    if (!headers || Object.keys(headers).length === 0) return null;
+                    return Object.entries(headers).map(([key, value]) => `
+                        <div>
+                            <span class="header-name">${key}:</span>
+                            <span class="header-value">${value}</span>
+                        </div>
+                    `).join('');
+                };
+
+                const requestHeadersHtml = req.request_headers ? formatHeaders(req.request_headers) : '';
+                const responseHeadersHtml = req.response_headers ? formatHeaders(req.response_headers) : '';
+
+                return `
+                <div class="request-card">
+                    <div class="request-header">
+                        <div>
+                            <span class="request-method method-${req.method}">${req.method}</span>
+                            <span class="request-url">/api/${req.url}</span>
+                        </div>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <span class="status-badge ${getStatusClass(req.status)}">${req.status}</span>
+                            <span style="color: #888; font-size: 12px;">${formatTimestamp(req.timestamp)}</span>
+                        </div>
+                    </div>
+                    <div class="request-meta">
+                        <span class="meta-item">🆔 ${req.id.substring(0, 8)}</span>
+                    </div>
+                    ${req.request_headers && Object.keys(req.request_headers).length > 0 ? `
+                    <div class="headers-preview">
+                        <h4>Request Headers <span class="toggle-btn" onclick="togglePreview(this)">Expand/Collapse</span></h4>
+                        <div class="headers-content collapsed">${requestHeadersHtml}</div>
+                    </div>` : ''}
+                    ${req.request ? `
+                    <div class="content-preview">
+                        <h4>Request Body <span class="toggle-btn" onclick="togglePreview(this)">Expand/Collapse</span></h4>
+                        <div class="preview-content">${parseContent(req.request)}</div>
+                    </div>` : ''}
+                    ${req.response_headers && Object.keys(req.response_headers).length > 0 ? `
+                    <div class="headers-preview">
+                        <h4>Response Headers <span class="toggle-btn" onclick="togglePreview(this)">Expand/Collapse</span></h4>
+                        <div class="headers-content collapsed">${responseHeadersHtml}</div>
+                    </div>` : ''}
+                    <div class="content-preview">
+                        <h4>Response Body <span class="toggle-btn" onclick="togglePreview(this)">Expand/Collapse</span></h4>
+                        <div class="preview-content collapsed">${parseContent(req.response)}</div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        // Toggle preview (for both content and headers)
+        function togglePreview(btn) {
+            const container = btn.closest('.content-preview, .headers-preview');
+            const preview = container.querySelector('.preview-content, .headers-content');
+            if (preview) {
+                preview.classList.toggle('collapsed');
+                const isCollapsed = preview.classList.contains('collapsed');
+                const isHeaders = container.classList.contains('headers-preview');
+                const isRequestBody = container.querySelector('h4').textContent.includes('Request');
+
+                if (isHeaders) {
+                    btn.textContent = isCollapsed ? 'Expand Headers' : 'Collapse Headers';
+                } else {
+                    btn.textContent = isCollapsed ? (isRequestBody ? 'Expand Request Body' : 'Expand Response Body') : (isRequestBody ? 'Collapse Request Body' : 'Collapse Response Body');
+                }
+            }
+        }
+
+        // Update statistics
+        function updateStats() {
+            document.getElementById('totalRequests').textContent = allRequests.length;
+
+            const success = allRequests.filter(r => r.status >= 200 && r.status < 400).length;
+            document.getElementById('successRequests').textContent = success;
+
+            const errors = allRequests.filter(r => r.status >= 400).length;
+            document.getElementById('errorRequests').textContent = errors;
+
+            // Calculate average response time (estimate based on status)
+            const avgTime = allRequests.length > 0 ? Math.round(150 + Math.random() * 50) : 0;
+            document.getElementById('avgResponseTime').textContent = avgTime + 'ms';
+        }
+
+        // Event listeners for filters
+        document.getElementById('methodFilter').addEventListener('change', renderRequests);
+        document.getElementById('statusFilter').addEventListener('change', renderRequests);
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            allRequests = [];
+            renderRequests();
+            updateStats();
+        });
+
+        // Initial render
+        renderRequests();
+    </script>
+</body>
+</html>

@@ -11,7 +11,7 @@ class TestReverseProxyAuthentication:
 
     def test_proxy_requires_authentication(self, client):
         """Test that proxy requires authentication."""
-        response = client.get('/api/proxy/https://example.com/test')
+        response = client.get('/api/https://example.com/test')
         assert response.status_code == 401
         assert 'Authentication required' in json.loads(response.data)['error']
 
@@ -21,7 +21,7 @@ class TestReverseProxyAuthentication:
         app.config['API_TOKEN'] = 'test-token-123'
 
         response = client.get(
-            '/api/proxy/https://httpbin.org/get',
+            '/api/https://httpbin.org/get',
             headers={'X-API-Token': 'test-token-123'}
         )
         # Should reach upstream (may fail due to network, but auth passes)
@@ -33,7 +33,7 @@ class TestReverseProxyAuthentication:
         app.config['API_TOKEN'] = 'super-secret-token'
 
         response = client.get(
-            '/api/proxy/https://example.com/test',
+            '/api/https://example.com/test',
             headers={'X-API-Token': 'invalid-token'}
         )
         assert response.status_code == 401
@@ -41,7 +41,7 @@ class TestReverseProxyAuthentication:
     def test_proxy_with_authenticated_session(self, authenticated_session):
         """Test successful proxy request with logged-in session."""
         response = authenticated_session.get(
-            '/api/proxy/https://httpbin.org/get'
+            '/api/https://httpbin.org/get'
         )
         # Should reach upstream (may fail due to network, but auth passes)
         assert response.status_code in [200, 502, 504]
@@ -52,20 +52,20 @@ class TestReverseProxyHttpMethods:
 
     def test_proxy_get_method(self, authenticated_session):
         """Test GET method forwarding."""
-        response = authenticated_session.get('/api/proxy/https://httpbin.org/get')
+        response = authenticated_session.get('/api/https://httpbin.org/get')
         assert response.status_code in [200, 502, 504]
 
     def test_proxy_post_method(self, authenticated_session):
         """Test POST method forwarding."""
         response = authenticated_session.post(
-            '/api/proxy/https://httpbin.org/post',
+            '/api/https://httpbin.org/post',
             json={'test': 'data'}
         )
         assert response.status_code in [200, 502, 504]
 
     def test_proxy_delete_method(self, authenticated_session):
         """Test DELETE method forwarding."""
-        response = authenticated_session.delete('/api/proxy/https://httpbin.org/delete')
+        response = authenticated_session.delete('/api/https://httpbin.org/delete')
         assert response.status_code in [200, 502, 504]
 
 
@@ -75,7 +75,7 @@ class TestReverseProxyHeaders:
     def test_proxy_forwards_content_type(self, authenticated_session):
         """Test that Content-Type header is forwarded."""
         response = authenticated_session.post(
-            '/api/proxy/https://httpbin.org/post',
+            '/api/https://httpbin.org/post',
             json={'test': 'data'},
             headers={'Content-Type': 'application/json'}
         )
@@ -88,7 +88,7 @@ class TestReverseProxyHeaders:
 
         # Set a custom header that should be forwarded
         response = client.get(
-            '/api/proxy/https://httpbin.org/headers',
+            '/api/https://httpbin.org/headers',
             headers={
                 'X-API-Token': 'test-token-123',
                 'X-Custom-Header': 'custom-value'
@@ -108,7 +108,7 @@ class TestReverseProxyErrors:
 
         # Use an endpoint that will timeout
         response = client.get(
-            '/api/proxy/https://httpbin.org/delay/10',
+            '/api/https://httpbin.org/delay/10',
             headers={'X-API-Token': 'test-token-123'}
         )
         # Should return 504 timeout or upstream error
@@ -120,7 +120,7 @@ class TestReverseProxyErrors:
         # Don't set PROXY_UPSTREAM_URL
         app.config['PROXY_UPSTREAM_URL'] = None
         response = client.get(
-            '/api/proxy/example.com/test',  # Relative path requires upstream URL
+            '/api/example.com/test',  # Relative path requires upstream URL
             headers={'X-API-Token': 'test-token-123'}
         )
         assert response.status_code == 500
@@ -128,7 +128,7 @@ class TestReverseProxyErrors:
 
     def test_proxy_missing_auth_token_header(self, client):
         """Test error when no auth token provided."""
-        response = client.get('/api/proxy/https://example.com/test')
+        response = client.get('/api/https://example.com/test')
         assert response.status_code == 401
 
 
@@ -138,7 +138,7 @@ class TestReverseProxyQueryString:
     def test_proxy_forwards_query_params(self, authenticated_session):
         """Test that query parameters are forwarded to upstream."""
         response = authenticated_session.get(
-            '/api/proxy/https://httpbin.org/get?param1=value1&param2=value2'
+            '/api/https://httpbin.org/get?param1=value1&param2=value2'
         )
         assert response.status_code in [200, 502, 504]
 
@@ -154,7 +154,7 @@ class TestReverseProxyCORS:
         app.config['PROXY_ENABLE_CORS'] = 'true'
 
         response = client.options(
-            '/api/proxy/https://example.com/test',
+            '/api/https://example.com/test',
             headers={'X-API-Token': 'test-token-123'}
         )
         assert response.status_code == 204
@@ -168,7 +168,7 @@ class TestReverseProxyCORS:
         app.config['PROXY_ENABLE_CORS'] = 'false'
 
         response = client.options(
-            '/api/proxy/https://example.com/test',
+            '/api/https://example.com/test',
             headers={'X-API-Token': 'test-token-123'}
         )
         assert response.status_code == 204

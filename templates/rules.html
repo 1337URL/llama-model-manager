@@ -55,6 +55,8 @@
         .field-group input:focus, .field-group select:focus { outline: none; border-color: #667eea; }
         .action-buttons { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
         .help-text { color: #888; font-size: 12px; margin-top: 5px; }
+        .rename-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        .rename-row input { margin: 0; }
     </style>
 </head>
 <body>
@@ -73,6 +75,7 @@
             <div class="tabs">
                 <div class="tab active" onclick="switchTab('view')">View Rules</div>
                 <div class="tab" onclick="switchTab('edit')">Edit Rules</div>
+                <div class="tab" onclick="switchTab('builder')">Rule Builder</div>
                 <div class="tab" onclick="switchTab('examples')">Examples</div>
             </div>
 
@@ -88,6 +91,138 @@
                 <div class="action-buttons">
                     <button onclick="loadRules()">Refresh Rules</button>
                     <button class="danger" onclick="clearAllRules()">Clear All Rules</button>
+                </div>
+            </div>
+
+            <!-- Builder Tab -->
+            <div class="tab-content" id="builder-tab">
+                <h3 style="color: #fff; margin-bottom: 20px;">Rule Builder</h3>
+                <p class="help-text" style="color: #888; text-align: center; margin-bottom: 20px;">Create proxy rules interactively without writing JSON</p>
+
+                <!-- Match Conditions Section -->
+                <div class="card">
+                    <h4 style="color: #fff; margin-bottom: 15px;">Match Conditions (Optional)</h4>
+
+                    <div class="field-group">
+                        <label for="builderUrl">URL Pattern</label>
+                        <input type="text" id="builderUrl" placeholder="https://api.example.com/v1/*">
+                        <p class="help-text">Leave empty to match all URLs. Use * for wildcard matching.</p>
+                    </div>
+
+                    <div class="field-group">
+                        <label for="builderContentType">Content Type</label>
+                        <select id="builderContentType">
+                            <option value="">Any</option>
+                            <option value="application/json">application/json</option>
+                            <option value="text/html">text/html</option>
+                            <option value="text/plain">text/plain</option>
+                            <option value="application/xml">application/xml</option>
+                        </select>
+                    </div>
+
+                    <div class="field-group">
+                        <label for="builderMethod">HTTP Method</label>
+                        <select id="builderMethod">
+                            <option value="">Any</option>
+                            <option value="GET">GET</option>
+                            <option value="POST">POST</option>
+                            <option value="PUT">PUT</option>
+                            <option value="DELETE">DELETE</option>
+                            <option value="PATCH">PATCH</option>
+                            <option value="OPTIONS">OPTIONS</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Transform Section -->
+                <div class="card">
+                    <h4 style="color: #fff; margin-bottom: 15px;">Transform Configuration</h4>
+
+                    <div class="field-group">
+                        <label for="builderTransformType">Transform Type</label>
+                        <select id="builderTransformType" onchange="updateTransformOptions()">
+                            <option value="json">JSON</option>
+                            <option value="text">Text</option>
+                        </select>
+                    </div>
+
+                    <div class="field-group">
+                        <label for="builderAction">Action</label>
+                        <select id="builderAction" onchange="updateActionFields()">
+                            <!-- JSON options -->
+                            <option value="">-- Select transform type first --</option>
+                            <option value="add">add - Add new fields to JSON</option>
+                            <option value="remove">remove - Remove specified fields</option>
+                            <option value="rename">rename - Rename JSON keys</option>
+                            <option value="set">set - Set default values for missing fields</option>
+                            <!-- Text options -->
+                            <option value="replace">replace - Simple string replacement</option>
+                            <option value="regex">regex - Regex pattern replacement</option>
+                        </select>
+                    </div>
+
+                    <!-- JSON-Specific Fields -->
+                    <div id="jsonFieldsSection" style="display: none;">
+                        <div class="field-group">
+                            <label id="jsonFieldsLabel" for="jsonFieldsEditor">Fields</label>
+                            <div id="jsonFieldsHelp" class="help-text">Enter JSON key-value pairs</div>
+                            <textarea id="jsonFieldsEditor" placeholder='{"key1": "value1", "key2": "value2"}' oninput="updatePreview()"></textarea>
+                        </div>
+
+                        <!-- Rename-specific fields -->
+                        <div id="renameFieldsSection" style="display: none;">
+                            <div class="field-group">
+                                <label for="renamePairsEditor">Key pairs (old_key -> new_key)</label>
+                                <div id="renamePairsContainer">
+                                    <div class="rename-row">
+                                        <input type="text" placeholder="old_key" class="rename-input-key">
+                                        <span style="color: #888;">→</span>
+                                        <input type="text" placeholder="new_key" class="rename-input-value">
+                                        <button type="button" class="danger" onclick="removeRenameRow(this)" style="padding: 4px 8px; margin-left: 10px; font-size: 12px;">×</button>
+                                    </div>
+                                </div>
+                                <button type="button" onclick="addRenameRow()" style="margin-top: 10px; background: rgba(255,255,255,0.1); padding: 6px 12px; font-size: 12px;">+ Add Key Pair</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Text-Specific Fields -->
+                    <div id="textFieldsSection" style="display: none;">
+                        <div class="field-group" id="replaceFieldsGroup">
+                            <label for="textSearch">Search</label>
+                            <input type="text" id="textSearch" placeholder="Text to find">
+                        </div>
+                        <div class="field-group" id="replaceReplaceGroup">
+                            <label for="textReplace">Replace with</label>
+                            <input type="text" id="textReplace" placeholder="Replacement text">
+                        </div>
+                        <div class="field-group" id="regexPatternGroup" style="display: none;">
+                            <label for="textPattern">Pattern (regex)</label>
+                            <input type="text" id="textPattern" placeholder="Regex pattern">
+                            <p class="help-text">Use standard regex syntax. Use $1, $2 for capture groups.</p>
+                        </div>
+                        <div class="field-group" id="regexReplaceGroup" style="display: none;">
+                            <label for="textRegexReplace">Replacement</label>
+                            <input type="text" id="textRegexReplace" placeholder="Replacement text">
+                            <p class="help-text">Use $1, $2 to reference capture groups.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Preview Section -->
+                <div class="card">
+                    <h4 style="color: #fff; margin-bottom: 15px;">Generated Rule Preview</h4>
+                    <div class="json-preview">
+                        <h4>JSON:</h4>
+                        <code id="rulePreview">Select an action to generate a preview</code>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="action-buttons">
+                    <button onclick="addRuleFromBuilder()">Add Rule</button>
+                    <button class="secondary" onclick="addAndClearRule()">Add and Clear</button>
+                    <button class="secondary" onclick="generatePreview()">Generate Preview</button>
                 </div>
             </div>
 
@@ -393,6 +528,284 @@
 
         // Load rules on page load
         loadRules();
+
+        // ==================== Rule Builder Functions ====================
+
+        let renameRows = 1;
+
+        function updateTransformOptions() {
+            const transformType = document.getElementById('builderTransformType').value;
+            const actionSelect = document.getElementById('builderAction');
+
+            // Reset action options based on transform type
+            if (transformType === 'json') {
+                actionSelect.innerHTML = `<option value="add">add - Add new fields to JSON</option>
+                    <option value="remove">remove - Remove specified fields</option>
+                    <option value="rename">rename - Rename JSON keys</option>
+                    <option value="set">set - Set default values for missing fields</option>`;
+            } else if (transformType === 'text') {
+                actionSelect.innerHTML = `<option value="replace">replace - Simple string replacement</option>
+                    <option value="regex">regex - Regex pattern replacement</option>`;
+            }
+
+            // Reset fields when transform type changes
+            document.getElementById('jsonFieldsSection').style.display = 'none';
+            document.getElementById('textFieldsSection').style.display = 'none';
+            document.getElementById('rulePreview').textContent = 'Select an action to generate a preview';
+            document.getElementById('builderUrl').value = '';
+            document.getElementById('builderContentType').value = '';
+            document.getElementById('builderMethod').value = '';
+        }
+
+        function updateActionFields() {
+            const transformType = document.getElementById('builderTransformType').value;
+            const action = document.getElementById('builderAction').value;
+
+            // Hide all sections first
+            document.getElementById('jsonFieldsSection').style.display = 'none';
+            document.getElementById('textFieldsSection').style.display = 'none';
+
+            // Show JSON-specific fields
+            if (transformType === 'json') {
+                document.getElementById('jsonFieldsSection').style.display = 'block';
+
+                if (action === 'add' || action === 'remove' || action === 'set') {
+                    document.getElementById('jsonFieldsLabel').textContent = 'Fields';
+                    document.getElementById('jsonFieldsHelp').textContent = 'Enter JSON key-value pairs';
+                    document.getElementById('renameFieldsSection').style.display = 'none';
+                } else if (action === 'rename') {
+                    document.getElementById('jsonFieldsLabel').textContent = 'Key pairs (old_key -> new_key)';
+                    document.getElementById('jsonFieldsHelp').textContent = 'Enter pairs to rename keys';
+                    document.getElementById('renameFieldsSection').style.display = 'block';
+                }
+            }
+            // Show Text-specific fields
+            else if (transformType === 'text') {
+                document.getElementById('textFieldsSection').style.display = 'block';
+
+                if (action === 'replace') {
+                    document.getElementById('replaceFieldsGroup').style.display = 'block';
+                    document.getElementById('replaceReplaceGroup').style.display = 'block';
+                    document.getElementById('regexPatternGroup').style.display = 'none';
+                    document.getElementById('regexReplaceGroup').style.display = 'none';
+                } else if (action === 'regex') {
+                    document.getElementById('replaceFieldsGroup').style.display = 'none';
+                    document.getElementById('replaceReplaceGroup').style.display = 'none';
+                    document.getElementById('regexPatternGroup').style.display = 'block';
+                    document.getElementById('regexReplaceGroup').style.display = 'block';
+                }
+            }
+
+            updatePreview();
+        }
+
+        function addRenameRow() {
+            renameRows++;
+            const container = document.getElementById('renamePairsContainer');
+            const newRow = document.createElement('div');
+            newRow.className = 'rename-row';
+            newRow.innerHTML = `
+                <input type="text" placeholder="old_key" class="rename-input-key">
+                <span style="color: #888;">→</span>
+                <input type="text" placeholder="new_key" class="rename-input-value">
+                <button type="button" class="danger" onclick="removeRenameRow(this)" style="padding: 4px 8px; margin-left: 10px; font-size: 12px;">×</button>
+            `;
+            container.appendChild(newRow);
+        }
+
+        function removeRenameRow(btn) {
+            const container = document.getElementById('renamePairsContainer');
+            if (container.children.length > 1) {
+                btn.parentElement.remove();
+            }
+        }
+
+        function generatePreview() {
+            const rule = generateRuleFromForm();
+            if (rule) {
+                const formatted = JSON.stringify(rule, null, 2);
+                document.getElementById('rulePreview').textContent = formatted;
+            }
+        }
+
+        function generateRuleFromForm() {
+            // Collect match conditions
+            const match = {};
+            const url = document.getElementById('builderUrl').value.trim();
+            if (url) {
+                match.url = url;
+            }
+
+            const contentType = document.getElementById('builderContentType').value;
+            if (contentType) {
+                match.content_type = contentType;
+            }
+
+            const method = document.getElementById('builderMethod').value;
+            if (method) {
+                match.method = method;
+            }
+
+            // If no match conditions, return null
+            if (Object.keys(match).length === 0) {
+                alert('Please specify at least one match condition (URL, Content Type, or Method)');
+                return null;
+            }
+
+            // Collect transform configuration
+            const transformType = document.getElementById('builderTransformType').value;
+            const action = document.getElementById('builderAction').value;
+
+            if (!transformType || !action) {
+                alert('Please select a transform type and action');
+                return null;
+            }
+
+            const transform = {
+                type: transformType,
+                action: action
+            };
+
+            // Build fields based on transform type and action
+            if (transformType === 'json') {
+                if (action === 'add' || action === 'remove' || action === 'set') {
+                    const fieldsInput = document.getElementById('jsonFieldsEditor').value.trim();
+                    try {
+                        if (fieldsInput) {
+                            const fields = JSON.parse(fieldsInput);
+                            if (typeof fields !== 'object' || fields === null) {
+                                throw new Error('Fields must be a JSON object');
+                            }
+                            transform.fields = fields;
+                        }
+                    } catch (e) {
+                        alert('Invalid JSON in fields: ' + e.message);
+                        return null;
+                    }
+                } else if (action === 'rename') {
+                    const renamePairs = {};
+                    const renameInputs = document.querySelectorAll('.rename-input-key, .rename-input-value');
+                    for (let i = 0; i < renameInputs.length; i += 2) {
+                        const oldKey = renameInputs[i].value.trim();
+                        const newKey = renameInputs[i + 1].value.trim();
+                        if (oldKey && newKey) {
+                            renamePairs[oldKey] = newKey;
+                        }
+                    }
+                    if (Object.keys(renamePairs).length === 0) {
+                        alert('Please add at least one key pair for renaming');
+                        return null;
+                    }
+                    transform.renames = renamePairs;
+                }
+            } else if (transformType === 'text') {
+                if (action === 'replace') {
+                    const search = document.getElementById('textSearch').value.trim();
+                    const replace = document.getElementById('textReplace').value.trim();
+                    if (search && replace) {
+                        transform.search = search;
+                        transform.replace = replace;
+                    } else {
+                        alert('Please provide both search and replace text');
+                        return null;
+                    }
+                } else if (action === 'regex') {
+                    const pattern = document.getElementById('textPattern').value.trim();
+                    const replacement = document.getElementById('textRegexReplace').value.trim();
+                    if (pattern) {
+                        transform.pattern = pattern;
+                    }
+                    if (replacement) {
+                        transform.replacement = replacement;
+                    }
+                }
+            }
+
+            return { match, transform };
+        }
+
+        function addRuleFromBuilder() {
+            const rule = generateRuleFromForm();
+            if (!rule) {
+                return;
+            }
+
+            // Validate fields for remove action
+            if (rule.transform.action === 'remove') {
+                const fields = rule.transform.fields;
+                const fieldArray = typeof fields === 'object' ? Object.entries(fields) : [[fields]];
+                const fieldNames = fieldArray.flat().filter(k => typeof k === 'string');
+                if (fieldNames.length === 0) {
+                    alert('Please specify at least one field to remove');
+                    return;
+                }
+            }
+
+            // Validate fields for set action
+            if (rule.transform.action === 'set') {
+                const fields = rule.transform.fields;
+                if (typeof fields !== 'object' || fields === null || Object.keys(fields).length === 0) {
+                    alert('Please specify at least one field to set');
+                    return;
+                }
+            }
+
+            // Add rule to current rules
+            currentRules.push(rule);
+
+            // Save rules
+            saveRules();
+
+            // Show success message
+            alert('Rule added successfully!');
+        }
+
+        function addAndClearRule() {
+            addRuleFromBuilder();
+            resetForm();
+        }
+
+        function resetForm() {
+            document.getElementById('builderUrl').value = '';
+            document.getElementById('builderContentType').value = '';
+            document.getElementById('builderMethod').value = '';
+            document.getElementById('jsonFieldsEditor').value = '';
+            document.getElementById('textSearch').value = '';
+            document.getElementById('textReplace').value = '';
+            document.getElementById('textPattern').value = '';
+            document.getElementById('textRegexReplace').value = '';
+
+            renameRows = 1;
+            document.getElementById('renamePairsContainer').innerHTML = `
+                <div class="rename-row">
+                    <input type="text" placeholder="old_key" class="rename-input-key">
+                    <span style="color: #888;">→</span>
+                    <input type="text" placeholder="new_key" class="rename-input-value">
+                    <button type="button" class="danger" onclick="removeRenameRow(this)" style="padding: 4px 8px; margin-left: 10px; font-size: 12px;">×</button>
+                </div>
+            `;
+
+            document.getElementById('rulePreview').textContent = 'Select an action to generate a preview';
+
+            // Reset dropdowns
+            document.getElementById('builderTransformType').value = 'json';
+            updateTransformOptions();
+            document.getElementById('builderAction').value = '';
+            document.getElementById('builderAction').innerHTML = `<option value="add">add - Add new fields to JSON</option>
+                <option value="remove">remove - Remove specified fields</option>
+                <option value="rename">rename - Rename JSON keys</option>
+                <option value="set">set - Set default values for missing fields</option>
+                <option value="replace">replace - Simple string replacement</option>
+                <option value="regex">regex - Regex pattern replacement</option>`;
+        }
+
+        function updatePreview() {
+            const rule = generateRuleFromForm();
+            if (rule) {
+                const formatted = JSON.stringify(rule, null, 2);
+                document.getElementById('rulePreview').textContent = formatted;
+            }
+        }
     </script>
 </body>
 </html>

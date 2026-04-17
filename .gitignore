@@ -22,3 +22,6 @@ Thumbs.db
 
 # Test files
 .coverage
+
+# Proxy rules transformer
+*.rules.json

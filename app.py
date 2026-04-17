@@ -1,7 +1,9 @@
 import os
+import re
 import threading
 import uuid
 import requests
+import json
 from datetime import datetime
 from flask import Flask, render_template, jsonify, redirect, url_for, request, Response, Blueprint
 from flask_login import LoginManager, UserMixin, login_required, login_user, logout_user, current_user
@@ -25,6 +27,16 @@ if os.path.exists(env_file):
 
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
+# Load proxy rules from config (supports both .env and API updates)
+proxy_rules = []
+rules_config = app.config.get('PROXY_RULES', '[]')
+if rules_config:
+    import json
+    try:
+        proxy_rules = json.loads(rules_config)
+    except json.JSONDecodeError:
+        proxy_rules = []
 
 # Check if SECRET_KEY is set, generate one if not
 if not app.config.get('SECRET_KEY'):
@@ -304,6 +316,201 @@ def reverse_proxy_handler(method, subpath, upstream_url):
         return jsonify({'error': f'Upstream request failed: {str(e)}'}), 502
 
 
+# Rule Engine Functions
+def _rule_matches(rule, method, subpath, content_type, content=None):
+    """Check if a rule matches the current request/response."""
+    match = rule.get('match', {})
+
+    # Check URL pattern (prefix matching)
+    url_pattern = match.get('url')
+    if url_pattern:
+        # Support wildcard patterns like "https://api.example.com/v1/*"
+        if not subpath.startswith(url_pattern.rstrip('/*')):
+            return False
+
+    # Check content type
+    content_type_pattern = match.get('content_type')
+    if content_type_pattern:
+        if content_type and content_type_pattern.lower() not in content_type.lower():
+            return False
+
+    # Check HTTP method
+    method_pattern = match.get('method')
+    if method_pattern:
+        if method.upper() != method_pattern.upper():
+            return False
+
+    return True
+
+
+def _apply_rule(rule, result):
+    """Apply a single rule's transformation to the result."""
+    transform = rule.get('transform', {})
+    transform_type = transform.get('type', '')
+    action = transform.get('action', '')
+
+    if transform_type == 'json':
+        return _transform_json(result, transform)
+    elif transform_type == 'text':
+        return _transform_text(result, transform)
+
+    return result
+
+
+def _transform_json(result, transform):
+    """Apply JSON transformations to the result."""
+    content = result['content']
+    action = transform.get('action', '')
+
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError:
+        # Not valid JSON, return as-is
+        return result
+
+    modified = False
+    rules_applied = []
+
+    if action == 'add':
+        # Add new fields to JSON
+        fields_to_add = transform.get('fields', {})
+        for key, value in fields_to_add.items():
+            data[key] = value
+        modified = True
+        rules_applied.append(f"Added fields: {list(fields_to_add.keys())}")
+
+    elif action == 'remove':
+        # Remove fields from JSON
+        fields_to_remove = transform.get('fields', [])
+        for field in fields_to_remove:
+            if field in data:
+                del data[field]
+                modified = True
+        rules_applied.append(f"Removed fields: {fields_to_remove}")
+
+    elif action == 'rename':
+        # Rename JSON keys
+        renames = transform.get('renames', {})
+        for old_key, new_key in renames.items():
+            if old_key in data:
+                data[new_key] = data.pop(old_key)
+                modified = True
+        rules_applied.append(f"Renamed keys: {list(renames.keys())}")
+
+    elif action == 'set':
+        # Set default values for missing fields
+        fields_to_set = transform.get('fields', {})
+        for key, value in fields_to_set.items():
+            if key not in data:
+                data[key] = value
+                modified = True
+        rules_applied.append(f"Set defaults for: {list(fields_to_set.keys())}")
+
+    if modified:
+        result['content'] = json.dumps(data, indent=2)
+        result['modified'] = True
+        result['rules_applied'] = rules_applied
+
+    return result
+
+
+def _transform_text(result, transform):
+    """Apply text transformations to the result."""
+    content = result['content']
+    transform_type = transform.get('type', '')
+    action = transform.get('action', '')
+
+    modified = False
+    rules_applied = []
+
+    if action == 'replace':
+        # Simple string replacement
+        search = transform.get('search', '')
+        replace = transform.get('replace', '')
+        if search and search in content:
+            new_content = content.replace(search, replace)
+            if new_content != content:
+                content = new_content
+                modified = True
+                rules_applied.append(f"Replaced '{search}' with '{replace}'")
+
+    elif action == 'regex':
+        # Regex-based replacement
+        pattern = transform.get('pattern', '')
+        replacement = transform.get('replacement', '')
+        if pattern:
+            try:
+                new_content = re.sub(pattern, replacement, content)
+                if new_content != content:
+                    content = new_content
+                    modified = True
+                    rules_applied.append(f"Applied regex pattern '{pattern}'")
+            except re.error:
+                pass  # Invalid regex, skip
+
+    if modified:
+        result['content'] = content
+        result['modified'] = True
+        result['rules_applied'] = rules_applied
+
+    return result
+
+
+def _sanitize_rules(rules):
+    """Sanitize and validate rule configuration."""
+    sanitized = []
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+        sanitized_rule = {}
+        # Sanitize match conditions
+        if 'match' in rule and isinstance(rule['match'], dict):
+            sanitized_match = {}
+            for key in ['url', 'content_type', 'method']:
+                if key in rule['match']:
+                    sanitized_match[key] = str(rule['match'][key])
+            sanitized_rule['match'] = sanitized_match
+        # Sanitize transform
+        if 'transform' in rule and isinstance(rule['transform'], dict):
+            sanitized_transform = {}
+            for key in ['type', 'action']:
+                if key in rule['transform']:
+                    sanitized_transform[key] = str(rule['transform'][key])
+            sanitized_rule['transform'] = sanitized_transform
+            # Sanitize action-specific fields
+            if sanitized_transform.get('type') == 'json':
+                if 'fields' in rule['transform']:
+                    sanitized_rule['transform']['fields'] = rule['transform']['fields']
+                if 'renames' in rule['transform']:
+                    sanitized_rule['transform']['renames'] = {
+                        k: str(v) for k, v in rule['transform']['renames'].items()
+                    }
+            elif sanitized_transform.get('type') == 'text':
+                if 'search' in rule['transform']:
+                    sanitized_rule['transform']['search'] = str(rule['transform']['search'])
+                if 'replace' in rule['transform']:
+                    sanitized_rule['transform']['replace'] = str(rule['transform']['replace'])
+                if 'pattern' in rule['transform']:
+                    sanitized_rule['transform']['pattern'] = str(rule['transform']['pattern'])
+                if 'replacement' in rule['transform']:
+                    sanitized_rule['transform']['replacement'] = str(rule['transform']['replacement'])
+        sanitized.append(sanitized_rule)
+    return sanitized
+
+
+def apply_proxy_rules(content, method, subpath, content_type):
+    """Apply matching rules to proxied content."""
+    result = {'content': content, 'modified': False, 'rules_applied': []}
+
+    for rule in proxy_rules:
+        # Check if rule matches
+        if _rule_matches(rule, method, subpath, content_type, content):
+            # Apply transformation
+            result = _apply_rule(rule, result)
+
+    return result
+
+
 # Create reverse proxy blueprint
 reverse_proxy_bp = Blueprint('reverse_proxy', __name__, url_prefix='/api')
 
@@ -316,6 +523,29 @@ def add_cors_headers(response):
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, PATCH, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
     return response
+
+
+@reverse_proxy_bp.route('/rules', methods=['GET'])
+def get_proxy_rules():
+    """Get current proxy rules configuration."""
+    return jsonify({'rules': proxy_rules})
+
+
+@reverse_proxy_bp.route('/rules', methods=['POST'])
+@login_required
+def set_proxy_rules():
+    """Update proxy rules configuration."""
+    data = request.get_json()
+    if not data or 'rules' not in data:
+        return jsonify({'error': 'rules field required'}), 400
+
+    # Sanitize and store rules
+    new_rules = _sanitize_rules(data['rules'])
+    app.config['PROXY_RULES'] = json.dumps(new_rules)
+    global proxy_rules
+    proxy_rules = new_rules
+
+    return jsonify({'message': 'Rules updated', 'rules': new_rules})
 
 
 @reverse_proxy_bp.route('/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'])
@@ -364,7 +594,25 @@ def proxy_request(subpath):
         return response
 
     # Forward the request
-    return reverse_proxy_handler(request.method, subpath, upstream_url)
+    response = reverse_proxy_handler(request.method, subpath, upstream_url)
+
+    # Apply rules to response content if it has body
+    if hasattr(response, 'data') and response.data and response.data.strip():
+        content_type = response.headers.get('Content-Type', '')
+        # Extract content type for matching (before any charset parameters)
+        content_type_main = content_type.split(';')[0].strip() if ';' in content_type else content_type
+        rules_result = apply_proxy_rules(response.data.decode('utf-8', errors='replace'),
+                                         request.method, subpath, content_type_main)
+        if rules_result.get('modified'):
+            response = Response(rules_result['content'],
+                               status=response.status_code,
+                               mimetype=content_type)
+            # Update response headers
+            for key, value in response.headers.items():
+                if key.lower() not in ['transfer-encoding', 'content-encoding']:
+                    response.headers[key] = value
+
+    return response
 
 
 # Register the blueprint

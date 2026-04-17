@@ -4,6 +4,7 @@ Pytest configuration and fixtures for testing the Flask application.
 import pytest
 import os
 import shutil
+import json
 from app import app
 
 
@@ -19,6 +20,9 @@ def client():
     app.config['SESSION_COOKIE_SECURE'] = False
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['PROXY_RULES'] = json.dumps([
+        {"match": {"url": "https://api.example.com/v1/*", "content_type": "application/json"}, "transform": {"type": "json", "action": "remove", "fields": ["password", "token"]}}
+    ])
 
     # Clean up any existing test downloads directory
     if os.path.exists(app.config['LLAMA_ARG_MODELS_DIR']):

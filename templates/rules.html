@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proxy Rules - Configuration</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); min-height: 100vh; padding: 40px 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { color: #fff; text-align: center; margin-bottom: 10px; font-size: 2.5em; }
+        .subtitle { color: #888; text-align: center; margin-bottom: 30px; }
+        .card { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 16px; padding: 30px; margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.1); }
+        label { display: block; color: #fff; margin-bottom: 8px; font-weight: 500; }
+        textarea { width: 100%; padding: 12px; border: none; border-radius: 8px; background: rgba(255,255,255,0.1); color: #fff; font-size: 14px; font-family: 'Courier New', monospace; min-height: 200px; resize: vertical; }
+        textarea::placeholder { color: #888; }
+        button { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; margin-right: 10px; margin-top: 10px; transition: transform 0.2s; }
+        button:hover { transform: translateY(-2px); }
+        button:active { transform: translateY(0); }
+        button.secondary { background: rgba(255,255,255,0.1); }
+        button.danger { background: rgba(255, 107, 107, 0.3); }
+        button.danger:hover { background: rgba(255, 107, 107, 0.5); }
+        .error { color: #ff6b6b; margin-top: 10px; }
+        .success { color: #51cf66; margin-top: 10px; }
+        .info { background: rgba(89, 186, 251, 0.2); padding: 15px; border-radius: 8px; margin-top: 20px; color: #fff; }
+        .rules-list { display: grid; gap: 15px; margin-top: 20px; }
+        .rule-card { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; border: 1px solid rgba(255,255,255,0.05); }
+        .rule-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
+        .rule-badge { padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 12px; }
+        .badge-match { background: rgba(102, 126, 234, 0.3); color: #667eea; }
+        .badge-transform { background: rgba(120, 197, 133, 0.3); color: #78c585; }
+        .rule-detail { margin-left: 20px; margin-top: 10px; }
+        .rule-detail h4 { color: #fff; margin-bottom: 8px; font-size: 13px; }
+        .detail-row { color: #ccc; font-size: 13px; margin-bottom: 4px; padding: 4px 8px; background: rgba(0,0,0,0.2); border-radius: 4px; }
+        .detail-label { color: #888; }
+        .json-preview { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 15px; margin-top: 15px; overflow-x: auto; max-height: 200px; }
+        .json-preview h4 { color: #fff; margin-bottom: 10px; font-size: 14px; }
+        .json-preview code { color: #ccc; font-family: 'Courier New', monospace; font-size: 12px; white-space: pre-wrap; }
+        nav { display: flex; gap: 15px; margin-bottom: 20px; }
+        .nav-link { color: #888; text-decoration: none; padding: 8px 16px; border-radius: 6px; transition: all 0.2s; }
+        .nav-link:hover { color: #fff; background: rgba(255,255,255,0.05); }
+        .nav-link.active { color: #fff; background: rgba(255,255,255,0.1); }
+        .welcome { color: #fff; text-align: center; margin-bottom: 20px; }
+        .empty-state { text-align: center; color: #888; padding: 60px 20px; }
+        .empty-state-icon { font-size: 48px; margin-bottom: 15px; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; }
+        .tab { padding: 8px 16px; background: rgba(255,255,255,0.05); border-radius: 8px 8px 0 0; cursor: pointer; color: #888; transition: all 0.2s; }
+        .tab.active { background: rgba(255,255,255,0.15); color: #fff; }
+        .tab:hover:not(.active) { background: rgba(255,255,255,0.1); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .field-group { margin-bottom: 15px; }
+        .field-group label { margin-bottom: 5px; font-size: 13px; }
+        .field-group input, .field-group select { width: 100%; padding: 10px; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; background: rgba(255,255,255,0.05); color: #fff; font-size: 14px; }
+        .field-group input:focus, .field-group select:focus { outline: none; border-color: #667eea; }
+        .action-buttons { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+        .help-text { color: #888; font-size: 12px; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav>
+            <a href="/" class="nav-link">Downloader</a>
+            <a href="/requests" class="nav-link">Proxy Monitor</a>
+            <a href="/rules" class="nav-link active">Rules</a>
+        </nav>
+
+        <h1>Proxy Rules</h1>
+        <p class="subtitle">Configure content transformation rules for proxied requests</p>
+        {% if username %}<p class="welcome">Welcome, <strong>{{ username }}</strong></p>{% endif %}
+
+        <div class="card">
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('view')">View Rules</div>
+                <div class="tab" onclick="switchTab('edit')">Edit Rules</div>
+                <div class="tab" onclick="switchTab('examples')">Examples</div>
+            </div>
+
+            <!-- View Tab -->
+            <div class="tab-content active" id="view-tab">
+                <div id="rulesList">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">⚙️</div>
+                        <p>No rules configured</p>
+                        <p style="margin-top: 10px;">Rules are applied in order to proxied responses based on matching conditions.</p>
+                    </div>
+                </div>
+                <div class="action-buttons">
+                    <button onclick="loadRules()">Refresh Rules</button>
+                    <button class="danger" onclick="clearAllRules()">Clear All Rules</button>
+                </div>
+            </div>
+
+            <!-- Edit Tab -->
+            <div class="tab-content" id="edit-tab">
+                <div class="info">
+                    <strong>Rule Format:</strong> JSON array of rule objects. Each rule has a <code>match</code> section (URL pattern, content type, method) and a <code>transform</code> section (type and action).
+                </div>
+                <label for="rulesJson">Rules JSON</label>
+                <textarea id="rulesJson" placeholder='[
+  {
+    "match": {
+      "url": "https://api.example.com/v1/*",
+      "content_type": "application/json"
+    },
+    "transform": {
+      "type": "json",
+      "action": "remove",
+      "fields": ["password", "token"]
+    }
+  }
+]'></textarea>
+                <div id="editError" class="error"></div>
+                <div class="action-buttons">
+                    <button onclick="saveRules()">Save Rules</button>
+                    <button class="secondary" onclick="loadRules()">Load Current</button>
+                </div>
+            </div>
+
+            <!-- Examples Tab -->
+            <div class="tab-content" id="examples-tab">
+                <h3 style="color: #fff; margin-bottom: 15px;">Rule Examples</h3>
+
+                <div class="rule-card">
+                    <h4 style="color: #fff; margin-bottom: 10px;">Remove sensitive fields from JSON</h4>
+                    <div class="json-preview">
+                        <h4>Example Rule:</h4>
+                        <code>{
+  "match": {
+    "url": "https://api.example.com/v1/*",
+    "content_type": "application/json"
+  },
+  "transform": {
+    "type": "json",
+    "action": "remove",
+    "fields": ["password", "secret_token"]
+  }
+}</code>
+                    </div>
+                    <p class="help-text">Removes specified fields from matching JSON responses.</p>
+                </div>
+
+                <div class="rule-card">
+                    <h4 style="color: #fff; margin-bottom: 10px;">Add fields to JSON responses</h4>
+                    <div class="json-preview">
+                        <h4>Example Rule:</h4>
+                        <code>{
+  "match": {
+    "url": "https://api.example.com/*",
+    "content_type": "application/json"
+  },
+  "transform": {
+    "type": "json",
+    "action": "add",
+    "fields": {
+      "processed_by": "llama-manager",
+      "timestamp": "2026-04-17T00:00:00Z"
+    }
+  }
+}</code>
+                    </div>
+                    <p class="help-text">Adds new fields to matching JSON responses.</p>
+                </div>
+
+                <div class="rule-card">
+                    <h4 style="color: #fff; margin-bottom: 10px;">Rename JSON keys</h4>
+                    <div class="json-preview">
+                        <h4>Example Rule:</h4>
+                        <code>{
+  "match": {
+    "url": "https://api.example.com/v1/users",
+    "content_type": "application/json"
+  },
+  "transform": {
+    "type": "json",
+    "action": "rename",
+    "renames": {
+      "id": "user_id",
+      "name": "username"
+    }
+  }
+}</code>
+                    </div>
+                    <p class="help-text">Renames specified keys in matching JSON responses.</p>
+                </div>
+
+                <div class="rule-card">
+                    <h4 style="color: #fff; margin-bottom: 10px;">Set default values for missing fields</h4>
+                    <div class="json-preview">
+                        <h4>Example Rule:</h4>
+                        <code>{
+  "match": {
+    "url": "https://api.example.com/v1/*",
+    "content_type": "application/json"
+  },
+  "transform": {
+    "type": "json",
+    "action": "set",
+    "fields": {
+      "active": true,
+      "verified": false
+    }
+  }
+}</code>
+                    </div>
+                    <p class="help-text">Sets default values for missing fields in matching JSON responses.</p>
+                </div>
+
+                <div class="rule-card">
+                    <h4 style="color: #fff; margin-bottom: 10px;">Replace text using regex</h4>
+                    <div class="json-preview">
+                        <h4>Example Rule:</h4>
+                        <code>{
+  "match": {
+    "url": "https://*.example.com/*",
+    "content_type": "text/html"
+  },
+  "transform": {
+    "type": "text",
+    "action": "regex",
+    "pattern": "href=\"(https?://www\\.example\\.com/)",
+    "replacement": "href=\"https://api.example.com/"
+  }
+}</code>
+                    </div>
+                    <p class="help-text">Applies regex pattern replacement in text responses.</p>
+                </div>
+
+                <div class="rule-card">
+                    <h4 style="color: #fff; margin-bottom: 10px;">Simple string replacement</h4>
+                    <div class="json-preview">
+                        <h4>Example Rule:</h4>
+                        <code>{
+  "match": {
+    "url": "https://*.example.com/*",
+    "content_type": "text/plain"
+  },
+  "transform": {
+    "type": "text",
+    "action": "replace",
+    "search": "www.example.com",
+    "replace": "api.example.com"
+  }
+}</code>
+                    </div>
+                    <p class="help-text">Replaces exact text matches in text responses.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentRules = [];
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            event.target.classList.add('active');
+            document.getElementById(tabName + '-tab').classList.add('active');
+        }
+
+        function loadRules() {
+            fetch('/api/rules')
+                .then(res => res.json())
+                .then(data => {
+                    currentRules = data.rules || [];
+                    renderRulesList();
+                    updateRulesEditor();
+                    document.getElementById('editError').textContent = '';
+                })
+                .catch(err => {
+                    document.getElementById('editError').textContent = 'Error loading rules: ' + err.message;
+                });
+        }
+
+        function renderRulesList() {
+            const container = document.getElementById('rulesList');
+            if (currentRules.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">⚙️</div>
+                        <p>No rules configured</p>
+                        <p style="margin-top: 10px;">Rules are applied in order to proxied responses based on matching conditions.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = currentRules.map((rule, index) => {
+                const match = rule.match || {};
+                const transform = rule.transform || {};
+                const matchConditions = [
+                    match.url && `<span class="detail-row"><span class="detail-label">URL:</span> ${match.url}</span>`,
+                    match.content_type && `<span class="detail-row"><span class="detail-label">Content-Type:</span> ${match.content_type}</span>`,
+                    match.method && `<span class="detail-row"><span class="detail-label">Method:</span> ${match.method}</span>`,
+                ].filter(Boolean).join(' ');
+
+                const transformDetails = [
+                    transform.type && `<span class="detail-row"><span class="detail-label">Type:</span> ${transform.type}</span>`,
+                    transform.action && `<span class="detail-row"><span class="detail-label">Action:</span> ${transform.action}</span>`,
+                    transform.fields && Object.keys(transform.fields).length > 0 &&
+                        `<span class="detail-row"><span class="detail-label">Fields:</span> ${JSON.stringify(transform.fields)}</span>`,
+                    transform.renames && Object.keys(transform.renames).length > 0 &&
+                        `<span class="detail-row"><span class="detail-label">Renames:</span> ${JSON.stringify(transform.renames)}</span>`,
+                    transform.pattern && `<span class="detail-row"><span class="detail-label">Pattern:</span> ${transform.pattern}</span>`,
+                    transform.search && transform.replace &&
+                        `<span class="detail-row"><span class="detail-label">Replace:</span> "${transform.search}" → "${transform.replace}"</span>`,
+                ].filter(Boolean).join('');
+
+                return `
+                    <div class="rule-card">
+                        <div class="rule-header">
+                            <span class="rule-badge badge-match">Match</span>
+                            <span class="rule-badge badge-transform">Transform</span>
+                            <span style="color: #888; font-size: 12px;">Rule #${index + 1}</span>
+                        </div>
+                        <div class="rule-detail">
+                            <h4>Match Conditions</h4>
+                            ${matchConditions || '<span class="detail-row" style="color: #666;">No conditions specified</span>'}
+                        </div>
+                        <div class="rule-detail">
+                            <h4>Transform</h4>
+                            ${transformDetails || '<span class="detail-row" style="color: #666;">No transform specified</span>'}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateRulesEditor() {
+            document.getElementById('rulesJson').value = JSON.stringify(currentRules, null, 2);
+        }
+
+        function saveRules() {
+            const input = document.getElementById('rulesJson').value;
+            const errorDiv = document.getElementById('editError');
+            errorDiv.textContent = '';
+
+            try {
+                const rules = JSON.parse(input);
+                if (!Array.isArray(rules)) {
+                    throw new Error('Rules must be a JSON array');
+                }
+
+                fetch('/api/rules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rules })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    currentRules = data.rules;
+                    renderRulesList();
+                    updateRulesEditor();
+                    errorDiv.textContent = 'Rules saved successfully!';
+                    errorDiv.style.color = '#51cf66';
+                })
+                .catch(err => {
+                    errorDiv.textContent = 'Error saving rules: ' + err.message;
+                });
+            } catch (err) {
+                errorDiv.textContent = 'Invalid JSON: ' + err.message;
+            }
+        }
+
+        function clearAllRules() {
+            if (confirm('Are you sure you want to clear all rules?')) {
+                fetch('/api/rules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rules: [] })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        alert('Error clearing rules: ' + data.error);
+                    } else {
+                        currentRules = [];
+                        renderRulesList();
+                        updateRulesEditor();
+                        alert('All rules cleared');
+                    }
+                })
+                .catch(err => {
+                    alert('Error clearing rules: ' + err.message);
+                });
+            }
+        }
+
+        // Load rules on page load
+        loadRules();
+    </script>
+</body>
+</html>

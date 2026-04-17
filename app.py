@@ -626,5 +626,12 @@ def requests_page():
     return render_template('requests.html', username=current_user.username)
 
 
+@app.route('/rules')
+@login_required
+def rules_page():
+    """Proxy rules management page."""
+    return render_template('rules.html', username=current_user.username)
+
+
 if __name__ == '__main__':
     socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
